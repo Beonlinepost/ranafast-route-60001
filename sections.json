@@ -1,0 +1,163 @@
+[
+  {
+    "id": 60001,
+    "routeId": 60001,
+    "position": 1,
+    "name": "Annagry 1",
+    "boxNumber": 1
+  },
+  {
+    "id": 60002,
+    "routeId": 60001,
+    "position": 2,
+    "name": "Annagry 2",
+    "boxNumber": 2
+  },
+  {
+    "id": 60003,
+    "routeId": 60001,
+    "position": 3,
+    "name": "Annagry 3",
+    "boxNumber": 3
+  },
+  {
+    "id": 60004,
+    "routeId": 60001,
+    "position": 4,
+    "name": "Annagry East 1",
+    "boxNumber": 4
+  },
+  {
+    "id": 60005,
+    "routeId": 60001,
+    "position": 5,
+    "name": "Culacrick",
+    "boxNumber": 5
+  },
+  {
+    "id": 60006,
+    "routeId": 60001,
+    "position": 6,
+    "name": "Meenacrieve / Glen Road",
+    "boxNumber": 6
+  },
+  {
+    "id": 60007,
+    "routeId": 60001,
+    "position": 7,
+    "name": "Annagry (Colour Shop)",
+    "boxNumber": 7
+  },
+  {
+    "id": 60008,
+    "routeId": 60001,
+    "position": 11,
+    "name": "Annagry West",
+    "boxNumber": 11
+  },
+  {
+    "id": 60009,
+    "routeId": 60001,
+    "position": 12,
+    "name": "Annagry West 1",
+    "boxNumber": 12
+  },
+  {
+    "id": 60010,
+    "routeId": 60001,
+    "position": 19,
+    "name": "Annagry East / Ranamona",
+    "boxNumber": 19
+  },
+  {
+    "id": 60011,
+    "routeId": 60001,
+    "position": 20,
+    "name": "Ranamona",
+    "boxNumber": 20
+  },
+  {
+    "id": 60012,
+    "routeId": 60001,
+    "position": 21,
+    "name": "Ranafast 1",
+    "boxNumber": 21
+  },
+  {
+    "id": 60013,
+    "routeId": 60001,
+    "position": 22,
+    "name": "Ranafast 2",
+    "boxNumber": 22
+  },
+  {
+    "id": 60014,
+    "routeId": 60001,
+    "position": 23,
+    "name": "Ranafast 3",
+    "boxNumber": 23
+  },
+  {
+    "id": 60015,
+    "routeId": 60001,
+    "position": 24,
+    "name": "Ranafast 4",
+    "boxNumber": 24
+  },
+  {
+    "id": 60016,
+    "routeId": 60001,
+    "position": 25,
+    "name": "Ranafast 5",
+    "boxNumber": 25
+  },
+  {
+    "id": 60017,
+    "routeId": 60001,
+    "position": 26,
+    "name": "Ranafast 6",
+    "boxNumber": 26
+  },
+  {
+    "id": 60018,
+    "routeId": 60001,
+    "position": 27,
+    "name": "Loughanoran 1",
+    "boxNumber": 27
+  },
+  {
+    "id": 60019,
+    "routeId": 60001,
+    "position": 28,
+    "name": "Loughanoran 2",
+    "boxNumber": 28
+  },
+  {
+    "id": 60020,
+    "routeId": 60001,
+    "position": 29,
+    "name": "Ranafast 7",
+    "boxNumber": 29
+  },
+  {
+    "id": 60021,
+    "routeId": 60001,
+    "position": 30,
+    "name": "Ranafast 8",
+    "boxNumber": 30
+  },
+  {
+    "id": 60022,
+    "routeId": 60001,
+    "position": 31,
+    "name": "Derrymansher",
+    "boxNumber": 31
+  },
+  {
+    "id": 60023,
+    "routeId": 60001,
+    "position": 32,
+    "name": "Meendernasloe",
+    "boxNumber": 32
+  }
+]
