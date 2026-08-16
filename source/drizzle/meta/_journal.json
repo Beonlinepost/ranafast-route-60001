@@ -1,0 +1,34 @@
+{
+  "version": "7",
+  "dialect": "mysql",
+  "entries": [
+    {
+      "idx": 0,
+      "version": "5",
+      "when": 1778320138699,
+      "tag": "0000_open_emma_frost",
+      "breakpoints": true
+    },
+    {
+      "idx": 1,
+      "version": "5",
+      "when": 1778320317286,
+      "tag": "0001_nosy_shooting_star",
+      "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "5",
+      "when": 1778322510726,
+      "tag": "0002_cultured_hedge_knight",
+      "breakpoints": true
+    },
+    {
+      "idx": 3,
+      "version": "5",
+      "when": 1778324551722,
+      "tag": "0003_wet_mentor",
+      "breakpoints": true
+    }
+  ]
+}
