@@ -7,6 +7,16 @@ import { getDb } from "./db";
 import { learnedMappings, routes, sections, stops } from "../drizzle/schema";
 import { eq, and, like, or, asc, gt, desc, sql } from "drizzle-orm";
 import { z } from "zod";
+import { calculateConfidence } from "../client/src/lib/fuzzyMatcher";
+
+// Minimum blended similarity (Jaro-Winkler + Levenshtein + Double Metaphone, the
+// same scorer RouteIntelligenceMultiIndex uses for fuzzy name matches) for a
+// learned correction to fire on a transcript variant it wasn't saved under.
+// Deliberately stricter than the index's 0.65: a learned mapping short-circuits
+// search, so a false positive sends the postman to the wrong stop. Phonetic
+// similarity alone is NOT used — Double Metaphone codes are truncated to 4 chars,
+// so e.g. "patrick doherty" and "patrick mcgowan" both encode to PTRK.
+const FUZZY_CORRECTION_THRESHOLD = 0.85;
 
 function toLearnedMapping(row: typeof learnedMappings.$inferSelect) {
   return {
@@ -251,16 +261,47 @@ export const appRouter = router({
             )
           );
 
-        if (rows.length === 0) return null;
+        if (rows.length > 0) {
+          const best = rows.reduce((a, b) => (a.confirmationCount > b.confirmationCount ? a : b));
+          return {
+            stopId: best.stopId,
+            confidence: Math.min(0.5 + best.confirmationCount * 0.1, 0.85),
+            confirmationCount: best.confirmationCount,
+            lastConfirmedAt: best.lastConfirmedAt.getTime(),
+            matchType: "exact" as const,
+          };
+        }
 
-        const best = rows.reduce((a, b) => (a.confirmationCount > b.confirmationCount ? a : b));
-        const confidence = Math.min(0.5 + best.confirmationCount * 0.1, 0.85);
+        // Fallback: speech-to-text output varies between attempts at the same
+        // name, so fuzzy-match against every correction saved for this route.
+        const candidates = await db
+          .select()
+          .from(learnedMappings)
+          .where(eq(learnedMappings.routeId, input.routeId));
 
+        let fuzzyBest: { row: (typeof candidates)[number]; score: number } | null = null;
+        for (const row of candidates) {
+          const score = calculateConfidence(input.normalizedTranscript, row.normalizedTranscript);
+          if (score < FUZZY_CORRECTION_THRESHOLD) continue;
+          if (
+            !fuzzyBest ||
+            score > fuzzyBest.score ||
+            (score === fuzzyBest.score && row.confirmationCount > fuzzyBest.row.confirmationCount)
+          ) {
+            fuzzyBest = { row, score };
+          }
+        }
+
+        if (!fuzzyBest) return null;
+
+        const { row, score } = fuzzyBest;
         return {
-          stopId: best.stopId,
-          confidence,
-          confirmationCount: best.confirmationCount,
-          lastConfirmedAt: best.lastConfirmedAt.getTime(),
+          stopId: row.stopId,
+          // Scale by similarity so a fuzzy hit never outranks an exact one.
+          confidence: Math.min(0.5 + row.confirmationCount * 0.1, 0.85) * score,
+          confirmationCount: row.confirmationCount,
+          lastConfirmedAt: row.lastConfirmedAt.getTime(),
+          matchType: "fuzzy" as const,
         };
       }),
 

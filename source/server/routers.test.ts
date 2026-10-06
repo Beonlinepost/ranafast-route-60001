@@ -2,6 +2,7 @@ import { describe, expect, it, vi, beforeEach } from "vitest";
 import { appRouter } from "./routers";
 import type { TrpcContext } from "./_core/context";
 import { COOKIE_NAME } from "../shared/const";
+import { getDb } from "./db";
 
 // ── Minimal mock context ──────────────────────────────────────────────────────
 function makeCtx(overrides: Partial<TrpcContext> = {}): TrpcContext {
@@ -89,6 +90,77 @@ describe("corrections.lookup", () => {
       routeId: 1,
       normalizedTranscript: "michael",
     });
+    expect(result).toBeNull();
+  });
+
+  // Fake drizzle db: each select().from().where() resolves to the next batch.
+  // Call 1 is the exact-match query, call 2 is the fuzzy fallback's route scan.
+  function fakeDb(...batches: unknown[][]) {
+    const where = vi.fn();
+    batches.forEach((b) => where.mockResolvedValueOnce(b));
+    return { select: () => ({ from: () => ({ where }) }), where };
+  }
+
+  function mapping(id: number, stopId: number, normalizedTranscript: string, confirmationCount = 1) {
+    return {
+      id,
+      routeId: 1,
+      stopId,
+      originalTranscript: normalizedTranscript,
+      normalizedTranscript,
+      firstConfirmedAt: new Date(0),
+      lastConfirmedAt: new Date(1000),
+      confirmationCount,
+      tags: [],
+    };
+  }
+
+  const saved = [
+    mapping(1, 6, "patrick doherty", 3),
+    mapping(2, 2, "stevie mcgowan", 1),
+    mapping(3, 2, "patrick mcgowan", 1),
+  ];
+
+  it("returns an exact match without running the fuzzy fallback", async () => {
+    const db = fakeDb([saved[0]]);
+    vi.mocked(getDb).mockResolvedValueOnce(db as never);
+
+    const caller = appRouter.createCaller(makeCtx());
+    const result = await caller.corrections.lookup({
+      routeId: 1,
+      normalizedTranscript: "patrick doherty",
+    });
+
+    expect(result).toMatchObject({ stopId: 6, matchType: "exact", confidence: 0.8 });
+    expect(db.where).toHaveBeenCalledTimes(1);
+  });
+
+  it("fuzzy-matches a slightly different transcript variant of an existing correction", async () => {
+    const db = fakeDb([], saved);
+    vi.mocked(getDb).mockResolvedValueOnce(db as never);
+
+    const caller = appRouter.createCaller(makeCtx());
+    const result = await caller.corrections.lookup({
+      routeId: 1,
+      normalizedTranscript: "patrick dougherty",
+    });
+
+    // Must pick Doherty (stop 6), not "patrick mcgowan" despite the shared first name.
+    expect(result).toMatchObject({ stopId: 6, matchType: "fuzzy", confirmationCount: 3 });
+    expect(result!.confidence).toBeGreaterThan(0);
+    expect(result!.confidence).toBeLessThan(0.8); // discounted vs the exact match
+    expect(db.where).toHaveBeenCalledTimes(2);
+  });
+
+  it("returns null when no saved correction is similar enough", async () => {
+    vi.mocked(getDb).mockResolvedValueOnce(fakeDb([], saved) as never);
+
+    const caller = appRouter.createCaller(makeCtx());
+    const result = await caller.corrections.lookup({
+      routeId: 1,
+      normalizedTranscript: "james doherty",
+    });
+
     expect(result).toBeNull();
   });
 });
