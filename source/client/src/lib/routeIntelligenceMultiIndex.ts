@@ -30,6 +30,9 @@ import {
 import { normalizeTranscript } from "./correctionDetection";
 import type { Stop } from "../../../drizzle/schema";
 
+// Minimum calculateConfidence() for a Double Metaphone match to be accepted.
+const PHONETIC_MIN_CONFIDENCE = 0.7;
+
 export interface IndexEntry {
   normalized: string;
   phonetic: string;
@@ -310,6 +313,10 @@ export class RouteIntelligenceMultiIndex {
     const normalized = this.normalizeSearchTerm(spokenTerm);
     if (!normalized) return [];
 
+    // Score against a lowercased copy so results don't depend on how the
+    // speech engine capitalised the transcript (index keys are lowercase).
+    const spoken = spokenTerm.toLowerCase();
+
     const results: Map<number, SearchResult> = new Map();
 
     // 1. Check persistent learned mappings first (highest priority)
@@ -335,7 +342,7 @@ export class RouteIntelligenceMultiIndex {
 
     // 2. Check legacy learned mappings (for backward compatibility)
     const learnedEntries = this.learning.getEntries().filter(
-      (e) => e.spokenTerm.toLowerCase() === spokenTerm.toLowerCase()
+      (e) => e.spokenTerm.toLowerCase() === spoken
     );
     if (learnedEntries.length > 0) {
       const selectionCounts = new Map<number, number>();
@@ -370,56 +377,69 @@ export class RouteIntelligenceMultiIndex {
       { map: this.index.tags, name: "tags", priority: 0.75 },
     ];
 
-    const [spokenPrimary] = FuzzyMatcher.doubleMetaphone(spokenTerm);
+    const [spokenPrimary] = FuzzyMatcher.doubleMetaphone(spoken);
+
+    // A stop can match several keys (e.g. "carolinegreene" fuzzily and
+    // "caragreene" exactly); keep its best match, not whichever key came first.
+    const keepBest = (result: SearchResult) => {
+      const existing = results.get(result.stopId);
+      if (!existing || result.confidence > existing.confidence) {
+        results.set(result.stopId, result);
+      }
+    };
 
     indexes.forEach(({ map, name, priority }) => {
       map.forEach((entry, key) => {
         // Exact match on normalized term
         if (key === normalized) {
           entry.stopIds.forEach((stopId) => {
-            if (!results.has(stopId)) {
-              results.set(stopId, {
-                stopId,
-                confidence: 0.98,
-                matchType: "exact",
-                indexSource: name,
-                term: key,
-              });
-            }
+            keepBest({
+              stopId,
+              confidence: 0.98,
+              matchType: "exact",
+              indexSource: name,
+              term: key,
+            });
           });
           return;
         }
 
-        // Double Metaphone Phonetic match
-        const doubleMetaphoneSim = FuzzyMatcher.doubleMetaphoneSimilarity(spokenTerm, key);
-        if (doubleMetaphoneSim >= 0.85 || (spokenPrimary && entry.phonetic && spokenPrimary === entry.phonetic)) {
+        // Combined Jaro-Winkler + Levenshtein + Phonetic score, used to gate the
+        // phonetic branch below and as the fuzzy-match confidence.
+        const confidence = FuzzyMatcher.calculateConfidence(spoken, key);
+
+        // Double Metaphone Phonetic match. Codes are truncated to 4 chars, so a
+        // multi-word key like "caragreene" encodes to KRKR, same as "Kharghar" —
+        // a phonetic hit alone isn't enough; the strings must also look alike.
+        const doubleMetaphoneSim = FuzzyMatcher.doubleMetaphoneSimilarity(spoken, key);
+        const phoneticHit =
+          doubleMetaphoneSim >= 0.85 ||
+          (spokenPrimary && entry.phonetic && spokenPrimary === entry.phonetic);
+        if (phoneticHit && confidence >= PHONETIC_MIN_CONFIDENCE) {
           entry.stopIds.forEach((stopId) => {
-            if (!results.has(stopId)) {
-              results.set(stopId, {
-                stopId,
-                confidence: Math.min(0.90, doubleMetaphoneSim * priority),
-                matchType: "phonetic",
-                indexSource: name,
-                term: key,
-              });
-            }
+            keepBest({
+              stopId,
+              // Rank by the blended score, not the phonetic one: most phonetic
+              // hits have doubleMetaphoneSim 1.0 and would all tie at the cap.
+              confidence: Math.min(0.90, confidence * priority),
+              matchType: "phonetic",
+              indexSource: name,
+              term: key,
+            });
           });
           return;
         }
 
         // Combined Fuzzy match (Jaro-Winkler + Levenshtein + Phonetic)
-        const confidence = FuzzyMatcher.calculateConfidence(spokenTerm, key);
         if (confidence >= threshold) {
           entry.stopIds.forEach((stopId) => {
-            if (!results.has(stopId)) {
-              results.set(stopId, {
-                stopId,
-                confidence: confidence * priority,
-                matchType: "fuzzy",
-                indexSource: name,
-                term: key,
-              });
-            }
+            keepBest({
+              stopId,
+              confidence: confidence * priority,
+              matchType: "fuzzy",
+              indexSource: name,
+              term: key,
+            });
           });
         }
       });
